@@ -32,6 +32,14 @@ Parameters:
         Type: String
         Default: 10.0.3.0/24
 
+    createNatGateway:
+        Type: String
+        Default: false
+        AllowedValues:
+            - true
+            - false
+Conditions:
+        EnabledNatGateway: !Equals [ !Ref createNatGateway, 'true' ]
 Resources:
     VPC:
         Type: AWS::EC2::VPC
@@ -59,7 +67,7 @@ Resources:
         Type: AWS::EC2::Subnet
         Properties:
             VpcId: !Ref VPC
-            AvailabilityZone: !Select [0, !GetAZs ""] #select the first AZ from an array of values
+            AvailabilityZone: !Select [0, !GetAZs '' ] #select the first AZ from an array of values
             CidrBlock: !Ref PublicSubnet1CIDR
             MapPublicIpOnLaunch: true
             Tags:
@@ -70,7 +78,7 @@ Resources:
         Type: AWS::EC2::Subnet
         Properties:
             VpcId: !Ref VPC
-            AvailabilityZone: !Select [1, !GetAZs ""] #select the first AZ from an array of values
+            AvailabilityZone: !Select [1, !GetAZs '' ] #select the first AZ from an array of values
             CidrBlock: !Ref PublicSubnet2CIDR
             MapPublicIpOnLaunch: true
             Tags:
@@ -81,7 +89,7 @@ Resources:
         Type: AWS::EC2::Subnet
         Properties:
             VpcId: !Ref VPC
-            AvailabilityZone: !Select [0, !GetAZs ""]
+            AvailabilityZone: !Select [0, !GetAZs '' ]
             CidrBlock: !Ref PrivateSubnet1CIDR
             MapPublicIpOnLaunch: false
             Tags:
@@ -92,7 +100,7 @@ Resources:
         Type: AWS::EC2::Subnet
         Properties:
             VpcId: !Ref VPC
-            AvailabilityZone: !Select [1, !GetAZs ""]
+            AvailabilityZone: !Select [1, !GetAZs '' ]
             CidrBlock: !Ref PrivateSubnet2CIDR
             MapPublicIpOnLaunch: false
             Tags:
@@ -101,26 +109,30 @@ Resources:
 
     NatGateway1EIP:
         Type: AWS::EC2::EIP
-        DependsOn: InternetGatewayAttachment
+        # DependsOn: InternetGatewayAttachment
+        Condition: EnabledNatGateway
         Properties:
             Domain: vpc
 
     NatGateway2EIP:
         Type: AWS::EC2::EIP
-        DependsOn: InternetGatewayAttachment
+        # DependsOn: InternetGatewayAttachment
+        Condition: EnabledNatGateway
         Properties:
             Domain: vpc
 
     NatGateway1:
         Type: AWS::EC2::NatGateway
+        Condition: EnabledNatGateway
         Properties:
-            AllocationId: !GetAtt NatGateway1EIP.AllocationId
+            AllocationId: !GetAtt 'NatGateway1EIP.AllocationId'
             SubnetId: !Ref PublicSubnet1
 
     NatGateway2:
         Type: AWS::EC2::NatGateway
+        Condition: EnabledNatGateway
         Properties:
-            AllocationId: !GetAtt NatGateway2EIP.AllocationId
+            AllocationId: !GetAtt 'NatGateway2EIP.AllocationId'
             SubnetId: !Ref PublicSubnet2
 
     PublicRouteTable:
@@ -159,9 +171,10 @@ Resources:
                 - Key: Name
                   Value: !Sub ${EnvName} Private Routes (AZ1)
 
-    DefaultPrivateRoute:
+    DefaultPrivateRoute1:
         Type: AWS::EC2::Route
-        DependsOn: InternetGatewayAttachment
+        Condition: EnabledNatGateway
+        DependsOn: [ NatGateway1 ]
         Properties:
             RouteTableId: !Ref PrivateRouteTable
             DestinationCidrBlock: 0.0.0.0/0
