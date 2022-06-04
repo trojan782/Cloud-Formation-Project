@@ -38,8 +38,10 @@ Parameters:
         AllowedValues:
             - true
             - false
+
 Conditions:
         EnabledNatGateway: !Equals [ !Ref createNatGateway, 'true' ]
+
 Resources:
     VPC:
         Type: AWS::EC2::VPC
@@ -186,36 +188,50 @@ Resources:
             RouteTableId: !Ref PrivateRouteTable
             SubnetId: !Ref PrivateSubnet1
 
-#     PrivateRouteTable2:
-#         Type: AWS::EC2::RouteTable
-#         Properties:
-#             VpcId: !Ref VPC
-#             Tags:
-#                 - Key: Name
-#                   Value: !Sub ${EnvName} Private Routes (AZ2)
+    DefaultPrivateRoute2:
+        Type: AWS::EC2::Route
+        Condition: EnabledNatGateway
+        DependsOn: [ NatGateway2 ]
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable
+            DestinationCidrBlock: 0.0.0.0/0
+            NatGatewayId: !Ref NatGateway2
 
-#     DefaultPrivateRoute2:
-#         Type: AWS::EC2::Route
-#         Properties:
-#             RouteTableId: !Ref PrivateRouteTable2
-#             DestinationCidrBlock: 0.0.0.0/0
-#             NatGatewayId: !Ref NatGateway2
+    PrivateSubnet2RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable
+            SubnetId: !Ref PrivateSubnet2
 
-#     PrivateSubnet2RouteTableAssociation:
-#         Type: AWS::EC2::SubnetRouteTableAssociation
-#         Properties:
-#             RouteTableId: !Ref PrivateRouteTable2
-#             SubnetId: !Ref PrivateSubnet2
+Outputs:
+    VPC:
+        Description: VPC created
+        Value: !Ref VPC
+        Export:
+            Name: !Sub ${AWS::StackName}-VPCID
 
-# Outputs:
-#     VPC:
-#         Description: VPC created
-#         Value: !Ref VPC
-#         Export:
-#             Name: !Sub ${EnvName}-VPCID
+    VPCPublicRouteTable:
+        Description: Public Routing
+        Value: !Ref PublicRouteTable
+        Export:
+            Name: !Sub ${EnvName}-PUB-ROUTE-TABLE
 
-#     VPCPublicRouteTable:
-#         Description: Public Routing
-#         Value: !Ref PublicRouteTable
-#         Export:
-#             Name: !Sub ${EnvName}-PUB-ROUTE-TABLE
+    PublicSubnet1:
+            Value: !Ref  PublicSubnet1
+            Export:
+                Name: !Sub "${AWS::StackName}-public-subnet1-id"
+
+    PublicSubnet2:
+            Value: !Ref  PublicSubnet2
+            Export:
+                Name: !Sub "${AWS::StackName}-public-subnet2-id"
+
+    PrivateSubnet1:
+            Value: !Ref  PrivateSubnet1
+            Export:
+                Name: !Sub "${AWS::StackName}-private-subnet1-id"
+
+    PrivateSubnet2:
+            Value: !Ref  PrivateSubnet2
+            Export:
+                Name: !Sub "${AWS::StackName}-private-subnet2-id"
