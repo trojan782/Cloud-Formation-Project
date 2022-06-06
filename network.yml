@@ -208,7 +208,7 @@ Outputs:
         Description: VPC created
         Value: !Ref VPC
         Export:
-            Name: !Sub ${AWS::StackName}-VPCID
+            Name: !Sub ${EnvName}-VPCID
 
     VPCPublicRouteTable:
         Description: Public Routing
@@ -219,19 +219,25 @@ Outputs:
     PublicSubnet1:
             Value: !Ref  PublicSubnet1
             Export:
-                Name: !Sub "${AWS::StackName}-public-subnet1-id"
+                Name: !Sub "${EnvName}-public-subnet1"
 
     PublicSubnet2:
             Value: !Ref  PublicSubnet2
             Export:
-                Name: !Sub "${AWS::StackName}-public-subnet2-id"
+                Name: !Sub "${EnvName}-public-subnet2"
 
     PrivateSubnet1:
             Value: !Ref  PrivateSubnet1
             Export:
-                Name: !Sub "${AWS::StackName}-private-subnet1-id"
+                Name: !Sub "${EnvName}-private-subnet1"
 
     PrivateSubnet2:
             Value: !Ref  PrivateSubnet2
             Export:
-                Name: !Sub "${AWS::StackName}-private-subnet2-id"
+                Name: !Sub "${EnvName}-private-subnet2"
+
+    PrivateSubnets:
+        Description: A list of the private subnets
+        Value: !Join [",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ]]
+        Export:
+            Name: !Sub ${EnvName}-PRIV-NETS
