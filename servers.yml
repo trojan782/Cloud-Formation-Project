@@ -1,9 +1,5 @@
 Description: >
-    Jacobs David / Udagram-project-Deploying highly avaliability webapps
-    This template deploys load balancer and web server security groups.It 
-    also deploys auto scaling groupsand its lunch configuration.I addition,
-    we have load balancers, listeners, listeners rule,target groups,
-    IAM roles and policies.
+    Jacobs David / Deploy a High-Availability Web App using CloudFormation
 Parameters:
 
   EnvName:
@@ -171,7 +167,7 @@ Resources:
 Outputs: 
 
   WebAppLoadBalancerDNSName: # Load balancer URL output
-      Description: DNS name or Public URL of the Load Balancer
+      Description: Application URL
       Value: !Join [ "", [ 'http://', !GetAtt WebAppLB.DNSName ]]
       Export:
           Name: !Sub ${EnvName}-LB-DNSName         
