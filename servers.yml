@@ -169,6 +169,7 @@ Resources:
           -   Ref: RoleForS3ReadOnlyAccess
 
 Outputs: 
+
   WebAppLoadBalancerDNSName: # Load balancer URL output
       Description: DNS name or Public URL of the Load Balancer
       Value: !Join [ "", [ 'http://', !GetAtt WebAppLB.DNSName ]]
