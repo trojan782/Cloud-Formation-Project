@@ -1,145 +1,176 @@
 Description: >
-    Jacobs David / Project 2
-
+    Jacobs David / Udagram-project-Deploying highly avaliability webapps
+    This template deploys load balancer and web server security groups.It 
+    also deploys auto scaling groupsand its lunch configuration.I addition,
+    we have load balancers, listeners, listeners rule,target groups,
+    IAM roles and policies.
 Parameters:
-    EnvName:
-        Description: Our Environment name
-        Type: String
+
+  EnvName:
+      Description: An environment name that will be prefixed to resource names
+      Type: String  
 
 Resources:
-    LBSecurityGroup:
-        Type: AWS::EC2::SecurityGroup
-        Properties:
-            GroupDescription: Allow http to our load balancer
-            VpcId:
-                Fn::ImportValue:
-                    !Sub "${EnvName}-VPCID"
-            SecurityGroupIngress:
-                - IpProtocol: tcp
-                  FromPort: 80
-                  ToPort: 80
-                  CidrIp: 0.0.0.0/0
-            SecurityGroupEgress:
-                - IpProtocol: tcp
-                  FromPort: 80
-                  ToPort: 80
-                  CidrIp: 0.0.0.0/0
 
-    ServerSecurityGroup:
-        Type: AWS::EC2::SecurityGroup
-        Properties:
-            GroupDescription: Allow http requests to our hosts
-            VpcId:
-                Fn::ImportValue:
-                    !Sub "${EnvName}-VPCID"
-            SecurityGroupIngress:
-                - IpProtocol: tcp
-                  FromPort: 80
-                  ToPort: 80
-                  CidrIp: 0.0.0.0/0
-            SecurityGroupEgress:
-                - IpProtocol: tcp
-                  FromPort: 80
-                  ToPort: 80
-                  CidrIp: 0.0.0.0/0
+  LBSecGroup: # Load balance Security Group
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to our load balancer
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${EnvName}-VPCID"
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
 
-    AppLaunchConfig:
+  WebServerSecGroup: # Security Group for servers  
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to our hosts and SSH from local only
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${EnvName}-VPCID"
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 0.0.0.0/0    
+     
+  WebAppLaunchConfig: # Launch Config
       Type: AWS::AutoScaling::LaunchConfiguration
       Properties:
-        AssociatePublicIpAddress: false
-        ImageId: ami-005de95e8ff495156
-        EbsOptimized: true
-        InstanceType: t3.medium
-        SecurityGroups:
-          - Ref: ServerSecurityGroup
-        BlockDeviceMappings:
-        - DeviceName: "/dev/sdk"
-          Ebs:
-            VolumeSize: '10'
+        EbsOptmized: true
         UserData:
-          Fn::Base64: !Sub
+          Fn::Base64: !Sub |
             #!/bin/bash
             sudo apt-get update -y
             sudo apt-get install apache2 -y
             sudo systemctl start apache2.service
             cd /var/www/html
-            echo "Udacity Demo Web Server Up and Running!" > index.html
-    
-    AppGroup:
-        Type: AWS::AutoScaling::AutoScalingGroup
-        Properties:
-            VPCZoneIdentifier:
-            - Fn::ImportValue:
-                !Sub "${EnvName}-PRIV-NETS"
-            LaunchConfigurationName:
-                Ref: AppLaunchConfig
-            MinSize: '3'
-            MaxSize: '5'
-            TargetGroupARNs:
-            - Ref: WebAppTargetGroup
-                
-    WebAppLB:
-        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-        Properties:
-            Subnets:
-            - Fn::ImportValue: !Sub "${EnvName}-public-subnet1"
-            - Fn::ImportValue: !Sub "${EnvName}-public-subnet2"
-            SecurityGroups:
-            - Ref: LBSecurityGroup
+            echo "Udacity Demo Web Server Up and Running!" > index.html         
+        ImageId: ami-0ee8244746ec5d6d4
+        SecurityGroups:
+        - Ref: WebServerSecGroup
+        InstanceType: t3.medium
+        BlockDeviceMappings:
+        - DeviceName: "/dev/sdk"
+          Ebs:
+            VolumeSize: '10'
 
-    Listener:
-        Type: AWS::ElasticLoadBalancingV2::Listener
-        Properties:
-            DefaultActions:
-                - Type: forward
-                  TargetGroupArn:
-                    Ref: WebAppTargetGroup
-            LoadBalancerArn: !Ref WebAppLB
-            Port: '80'
-            Protocol: HTTP
+  WebAppGroup: #AutoScaling Group
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+      - Fn::ImportValue: 
+          !Sub "${EnvName}-PRIV-NETS"
+      LaunchConfigurationName:
+        Ref: WebAppLaunchConfig
+      MinSize: '4'
+      MaxSize: '6'
+      TargetGroupARNs: 
+        - Ref : WebAppTargetGroup
 
-    ALBListenerRule:
-        Type: AWS::ElasticLoadBalancingV2::ListenerRule
-        Properties:
-            Actions:
-            - Type: forward
-              TargetGroupArn: !Ref 'WebAppTargetGroup'
-            Conditions:
-            - Field: path-pattern
-              Values: [/]
-            ListenerArn: !Ref 'Listener'
-            Priority: 1
+  WebAppLB: # Load balancer
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Subnets:
+      - Fn::ImportValue: !Sub "${EnvName}-public-subnet1"
+      - Fn::ImportValue: !Sub "${EnvName}-public-subnet2"
+      SecurityGroups:
+      - Ref: LBSecGroup
 
-    WebAppTargetGroup:
-        Type: AWS::ElasticLoadBalancingV2::TargetGroup
-        Properties:
-            HealthCheckIntervalSeconds: 10
-            HealthCheckPath: /
-            HealthCheckProtocol: HTTP
-            HealthCheckTimeoutSeconds: 8
-            HealthyThresholdCount: 2
-            Port: 80
-            Protocol: HTTP
-            UnhealthyThresholdCount: 5
-            VpcId:
-                Fn::ImportValue:
-                    Fn::Sub: "${EnvName}-VPCID"
-    
-Outputs:
-    LoadBalancerDNS:
-        Value: !Join [ "", [ 'http://', !GetAtt WebAppLB.DNSName ]]
-        Export:
-            Name: "DNS-URL"
+  Listener: # Listener Rule
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn:
+          Ref: WebAppTargetGroup
+      LoadBalancerArn:
+        Ref: WebAppLB
+      Port: '80'
+      Protocol: HTTP
 
+  ALBListenerRule: #Listiner Rule
+      Type: AWS::ElasticLoadBalancingV2::ListenerRule
+      Properties:
+        Actions:
+        - Type: forward
+          TargetGroupArn: !Ref WebAppTargetGroup
+        Conditions:
+        - Field: path-pattern
+          Values: [/]
+        ListenerArn: !Ref 'Listener'
+        Priority: 1
 
+  WebAppTargetGroup: #Target Group
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 8
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 5
+      VpcId: 
+        Fn::ImportValue:
+          Fn::Sub: "${EnvName}-VPCID"              
 
+  RoleForS3ReadOnlyAccess: # IAM role for our s3 bucket
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: "/"  
 
+  ServerInstanceProfile: 
+    Type: "AWS::IAM::InstanceProfile"
+    Properties: 
+      Roles: 
+        - !Ref RoleForS3ReadOnlyAccess        
 
+  RolePolicies: # Role Policy
+      Type: AWS::IAM::Policy
+      Properties:
+          PolicyName: AmazonS3FullAccess
+          PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+              - 
+                  Effect: Allow
+                  Action: 
+                  -   s3:Get*
+                  -   s3:List*
+                  Resource: 
+                  -   arn:aws:s3:::my-139182442186-bucket
+                  -   arn:aws:s3:::my-139182442186-bucket/*
+          Roles:
+          -   Ref: RoleForS3ReadOnlyAccess
 
-
-
-        
-        
-
-
-
+Outputs: 
+  WebAppLoadBalancerDNSName: # Load balancer URL output
+      Description: DNS name or Public URL of the Load Balancer
+      Value: !Join [ "", [ 'http://', !GetAtt WebAppLB.DNSName ]]
+      Export:
+          Name: !Sub ${EnvName}-LB-DNSName         
